@@ -1,10 +1,10 @@
 use anyhow::{anyhow, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
+use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::str::FromStr;
-
 #[derive(Debug)]
 enum HeightMeasure {
     Cm,
@@ -85,7 +85,10 @@ impl TryFrom<&HashMap<String, String>> for ValidPassport {
         }
 
         let hgt_raw = hm.get("hgt").ok_or(anyhow!("No hgt"))?;
-        let hgt_regex = Regex::new(r"(?P<h>[0-9]{2,3})(?P<t>in|cm)").expect("Bad regex");
+        lazy_static! {
+            static ref hgt_regex: Regex =
+                Regex::new(r"(?P<h>[0-9]{2,3})(?P<t>in|cm)").expect("Bad regex");
+        }
         let caps = hgt_regex
             .captures(hgt_raw)
             .ok_or(anyhow!("No hgt captures"))?;
@@ -110,7 +113,10 @@ impl TryFrom<&HashMap<String, String>> for ValidPassport {
         };
 
         let hcl_raw = hm.get("hcl").ok_or(anyhow!("No hcl"))?;
-        let hcl_regex = Regex::new(r"#(?P<hex>[0-9a-f]+)").expect("Bad regex");
+
+        lazy_static! {
+            static ref hcl_regex: Regex = Regex::new(r"#(?P<hex>[0-9a-f]+)").expect("Bad regex");
+        }
         let caps = hcl_regex
             .captures(hcl_raw)
             .ok_or(anyhow!("No hcl captures"))?;
@@ -127,7 +133,9 @@ impl TryFrom<&HashMap<String, String>> for ValidPassport {
         let ecl = EyeColour::from_str(ecl_raw)?;
 
         let pid_raw = hm.get("pid").ok_or(anyhow!("No pid"))?;
-        let pid_regex = Regex::new(r"(?P<id>[0-9]+)").expect("Bad regex");
+        lazy_static! {
+            static ref pid_regex: Regex = Regex::new(r"(?P<id>[0-9]+)").expect("Bad regex");
+        }
         let caps = pid_regex
             .captures(pid_raw)
             .ok_or(anyhow!("No pid captures"))?;
