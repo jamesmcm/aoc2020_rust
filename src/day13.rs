@@ -43,6 +43,10 @@ pub fn solve_part1(input: &Input) -> u64 {
 
 #[aoc(day13, part2)]
 pub fn solve_part2(input: &Input) -> u64 {
+    brute_force(input)
+}
+
+pub fn mod_solve(input: &Input) -> u64 {
     let base_cycle = input.schedules[0].1;
     let maxmod = input.schedules.iter().fold(1, |acc, x| acc * x.1) as usize;
     let mut cycles = Vec::new();
@@ -74,19 +78,17 @@ pub fn solve_part2(input: &Input) -> u64 {
 
 fn brute_force(input: &Input) -> u64 {
     let mut i: u64 = 0;
-    loop {
-        if input
-            .schedules
-            .iter()
-            .all(|x| (i + x.0 as u64).rem_euclid(x.1 as u64) == 0)
-        {
-            break i;
+    let mut step = input.schedules[0].1;
+    for s in input.schedules[1..].iter() {
+        loop {
+            i += step as u64;
+            if (i + s.0 as u64).rem_euclid(s.1 as u64) == 0 {
+                break;
+            }
         }
-        i += input.schedules[0].1 as u64;
-        if i == u64::MAX {
-            break 0;
-        }
+        step = step * s.1;
     }
+    i
 }
 
 fn modulo_inverse(x: u64, p: u64) -> u64 {
