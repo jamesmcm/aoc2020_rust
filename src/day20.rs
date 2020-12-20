@@ -63,7 +63,7 @@ pub enum Border {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Transform {
     FlipHorizontal,
-    FlipVertical,
+    // FlipVertical,
     Rotate90,
     Rotate180,
     Rotate270,
@@ -156,22 +156,22 @@ impl Tile {
         (*lock).insert((self.id, newtile.transforms.clone()), newtile.clone());
         newtile
     }
-    pub fn flip_vertical(&self) -> Self {
-        let mut trans = self.transforms.clone();
-        trans.push(Transform::FlipVertical);
-        let mut lock = CACHE.lock().unwrap();
-        if let Some(res) = (*lock).get(&(self.id, trans)) {
-            return res.clone();
-        }
-        let mut newtile = self.clone();
-        let len = newtile.array[0].len();
-        for i in 0..len {
-            newtile.array[i] = self.array[len - i - 1].clone();
-        }
-        newtile.transforms.push(Transform::FlipVertical);
-        (*lock).insert((self.id, newtile.transforms.clone()), newtile.clone());
-        newtile
-    }
+    // pub fn flip_vertical(&self) -> Self {
+    //     let mut trans = self.transforms.clone();
+    //     trans.push(Transform::FlipVertical);
+    //     let mut lock = CACHE.lock().unwrap();
+    //     if let Some(res) = (*lock).get(&(self.id, trans)) {
+    //         return res.clone();
+    //     }
+    //     let mut newtile = self.clone();
+    //     let len = newtile.array[0].len();
+    //     for i in 0..len {
+    //         newtile.array[i] = self.array[len - i - 1].clone();
+    //     }
+    //     newtile.transforms.push(Transform::FlipVertical);
+    //     (*lock).insert((self.id, newtile.transforms.clone()), newtile.clone());
+    //     newtile
+    // }
 
     pub fn get_border(&self, side: Border) -> Vec<Pixel> {
         use Border::*;
@@ -209,8 +209,30 @@ pub fn input_generator(input: &str) -> Result<Vec<Tile>> {
     input.split("\n\n").map(|s| Tile::from_str(s)).collect()
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum AllTransforms {
+    Identity,
+    FH,
+    R90,
+    R180,
+    R270,
+    R90FH,
+    R180FH,
+    R270FH,
+}
+
 #[aoc(day20, part1)]
 pub fn solve_part1(input: &[Tile]) -> u64 {
+    // TODO:
+    // Generate all 8 Tile possibilities first identified by enum
+    // Store in (id, transform_enum) HashMap
+    // Also build (border, bordertype) -> (id, transform_enum) map - are they unique?
+    // Can then get next candidate by checking if there is valid border to the right/below
+    // Remaining Available Vec should be vec of Ids, then loop over transform enum to get all
+    // possibilities
+    // Candidate is (id, transform_enum) tuple
+    // Placed Vec should be Vec of (id, transform_enum)s
+    // Avoid clones
     let num_tiles = (input.len() as f64).sqrt() as usize;
     println!("Num tiles: {}, sqrt: {}", input.len(), num_tiles);
     let placed = vec![None; num_tiles * num_tiles];
@@ -316,16 +338,6 @@ pub fn step_solve(
             new_available.clone(),
             target_pos,
             Some(candidate.rotate_270()),
-            num_tiles,
-        );
-        if pc.is_ok() {
-            return pc;
-        }
-        let pc = step_solve(
-            placed.clone(),
-            new_available.clone(),
-            target_pos,
-            Some(candidate.flip_vertical()),
             num_tiles,
         );
         if pc.is_ok() {
