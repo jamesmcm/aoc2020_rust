@@ -1,19 +1,11 @@
 use anyhow::{anyhow, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
-use lazy_static::lazy_static;
-use regex::Regex;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::str::FromStr;
 use std::string::ToString;
-use std::sync::Mutex;
 
-lazy_static! {
-    static ref CACHE: Mutex<HashMap<(u32, Vec<Transform>), Tile>> = Mutex::new(HashMap::new());
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Pixel {
     On,
     Off,
@@ -49,10 +41,10 @@ pub struct Tile {
     pub array: Vec<Vec<Pixel>>,
     pub length: usize,
     pub id: u32,
-    pub transforms: Vec<Transform>,
+    pub transform: Transform,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Border {
     Top,
     Bottom,
@@ -60,13 +52,26 @@ pub enum Border {
     Right,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum Transform {
-    FlipHorizontal,
-    // FlipVertical,
-    Rotate90,
-    Rotate180,
-    Rotate270,
+pub fn rotate_90(input: &[Vec<Pixel>]) -> Vec<Vec<Pixel>> {
+    let mut newtile = input.to_vec();
+    let len = newtile[0].len();
+    for i in 0..len {
+        for j in 0..len {
+            newtile[i][j] = input[len - j - 1][i];
+        }
+    }
+    newtile
+}
+
+pub fn flip_horizontal(input: &[Vec<Pixel>]) -> Vec<Vec<Pixel>> {
+    let mut newtile = input.to_vec();
+    let len = newtile[0].len();
+    for i in 0..len {
+        for j in 0..len {
+            newtile[i][j] = input[i][len - j - 1];
+        }
+    }
+    newtile
 }
 
 impl Tile {
@@ -76,102 +81,9 @@ impl Tile {
             array,
             length,
             id,
-            transforms: Vec::new(),
+            transform: Transform::Identity,
         }
     }
-
-    pub fn rotate_90(&self) -> Self {
-        let mut trans = self.transforms.clone();
-        trans.push(Transform::Rotate90);
-        let mut lock = CACHE.lock().unwrap();
-        if let Some(res) = (*lock).get(&(self.id, trans)) {
-            return res.clone();
-        }
-
-        let mut newtile = self.clone();
-        let len = newtile.array[0].len();
-        for i in 0..len {
-            for j in 0..len {
-                newtile.array[i][j] = self.array[len - j - 1][i];
-            }
-        }
-        newtile.transforms.push(Transform::Rotate90);
-        (*lock).insert((self.id, newtile.transforms.clone()), newtile.clone());
-        newtile
-    }
-    pub fn rotate_180(&self) -> Self {
-        let mut trans = self.transforms.clone();
-        trans.push(Transform::Rotate180);
-        let mut lock = CACHE.lock().unwrap();
-        if let Some(res) = (*lock).get(&(self.id, trans)) {
-            return res.clone();
-        }
-
-        let mut newtile = self.clone();
-        let len = newtile.array[0].len();
-        for i in 0..len {
-            for j in 0..len {
-                newtile.array[i][j] = self.array[len - j - 1][len - i - 1];
-            }
-        }
-        newtile.transforms.push(Transform::Rotate180);
-        (*lock).insert((self.id, newtile.transforms.clone()), newtile.clone());
-        newtile
-    }
-    pub fn rotate_270(&self) -> Self {
-        let mut trans = self.transforms.clone();
-        trans.push(Transform::Rotate270);
-        let mut lock = CACHE.lock().unwrap();
-        if let Some(res) = (*lock).get(&(self.id, trans)) {
-            return res.clone();
-        }
-
-        let mut newtile = self.clone();
-        let len = newtile.array[0].len();
-        for i in 0..len {
-            for j in 0..len {
-                newtile.array[i][j] = self.array[j][len - i - 1];
-            }
-        }
-        newtile.transforms.push(Transform::Rotate270);
-        (*lock).insert((self.id, newtile.transforms.clone()), newtile.clone());
-        newtile
-    }
-    pub fn flip_horizontal(&self) -> Self {
-        let mut trans = self.transforms.clone();
-        trans.push(Transform::FlipHorizontal);
-        let mut lock = CACHE.lock().unwrap();
-        if let Some(res) = (*lock).get(&(self.id, trans)) {
-            return res.clone();
-        }
-
-        let mut newtile = self.clone();
-        let len = newtile.array[0].len();
-        for i in 0..len {
-            for j in 0..len {
-                newtile.array[i][j] = self.array[i][len - j - 1];
-            }
-        }
-        newtile.transforms.push(Transform::FlipHorizontal);
-        (*lock).insert((self.id, newtile.transforms.clone()), newtile.clone());
-        newtile
-    }
-    // pub fn flip_vertical(&self) -> Self {
-    //     let mut trans = self.transforms.clone();
-    //     trans.push(Transform::FlipVertical);
-    //     let mut lock = CACHE.lock().unwrap();
-    //     if let Some(res) = (*lock).get(&(self.id, trans)) {
-    //         return res.clone();
-    //     }
-    //     let mut newtile = self.clone();
-    //     let len = newtile.array[0].len();
-    //     for i in 0..len {
-    //         newtile.array[i] = self.array[len - i - 1].clone();
-    //     }
-    //     newtile.transforms.push(Transform::FlipVertical);
-    //     (*lock).insert((self.id, newtile.transforms.clone()), newtile.clone());
-    //     newtile
-    // }
 
     pub fn get_border(&self, side: Border) -> Vec<Pixel> {
         use Border::*;
@@ -210,7 +122,7 @@ pub fn input_generator(input: &str) -> Result<Vec<Tile>> {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum AllTransforms {
+pub enum Transform {
     Identity,
     FH,
     R90,
@@ -221,33 +133,158 @@ pub enum AllTransforms {
     R270FH,
 }
 
-#[aoc(day20, part1)]
-pub fn solve_part1(input: &[Tile]) -> u64 {
-    // TODO:
+pub fn get_map(
+    input: &[Tile],
+) -> (
+    Vec<Option<(u32, Transform)>>,
+    HashMap<(u32, Transform), Tile>,
+) {
     // Generate all 8 Tile possibilities first identified by enum
     // Store in (id, transform_enum) HashMap
+    let mut tile_map: HashMap<(u32, Transform), Tile> = HashMap::with_capacity(8 * input.len());
+    // println!("{:?}", input);
+    for tile in input {
+        tile_map.insert((tile.id, Transform::Identity), tile.clone());
+        tile_map.insert(
+            (tile.id, Transform::FH),
+            Tile {
+                id: tile.id,
+                transform: Transform::FH,
+                length: tile.length,
+                array: flip_horizontal(&tile.array),
+            },
+        );
+        tile_map.insert(
+            (tile.id, Transform::R90),
+            Tile {
+                id: tile.id,
+                transform: Transform::R90,
+                length: tile.length,
+                array: rotate_90(&tile.array),
+            },
+        );
+        tile_map.insert(
+            (tile.id, Transform::R180),
+            Tile {
+                id: tile.id,
+                transform: Transform::R180,
+                length: tile.length,
+                array: rotate_90(&rotate_90(&tile.array)),
+            },
+        );
+        tile_map.insert(
+            (tile.id, Transform::R270),
+            Tile {
+                id: tile.id,
+                transform: Transform::R270,
+                length: tile.length,
+                array: rotate_90(&rotate_90(&rotate_90(&tile.array))),
+            },
+        );
+        tile_map.insert(
+            (tile.id, Transform::R90FH),
+            Tile {
+                id: tile.id,
+                transform: Transform::R90FH,
+                length: tile.length,
+                array: flip_horizontal(&rotate_90(&tile.array)),
+            },
+        );
+        tile_map.insert(
+            (tile.id, Transform::R180FH),
+            Tile {
+                id: tile.id,
+                transform: Transform::R180FH,
+                length: tile.length,
+                array: flip_horizontal(&rotate_90(&rotate_90(&tile.array))),
+            },
+        );
+        tile_map.insert(
+            (tile.id, Transform::R270FH),
+            Tile {
+                id: tile.id,
+                transform: Transform::R270FH,
+                length: tile.length,
+                array: flip_horizontal(&rotate_90(&rotate_90(&rotate_90(&tile.array)))),
+            },
+        );
+    }
+    // tile_map.iter().for_each(|x| {
+    //     println!("{:?}", x.0);
+    //     for r in &x.1.array {
+    //         println!(
+    //             "{}",
+    //             r.iter()
+    //                 .map(|c| c.to_string())
+    //                 .collect::<Vec<String>>()
+    //                 .join("")
+    //         );
+    //     }
+    // });
+    let num_tiles = (input.len() as f64).sqrt() as usize;
+    println!("Num tiles: {}, sqrt: {}", input.len(), num_tiles);
+
     // Also build (border, bordertype) -> (id, transform_enum) map - are they unique?
+    let mut border_map: HashMap<(Vec<Pixel>, Border), Vec<(u32, Transform)>> =
+        HashMap::with_capacity(tile_map.len());
+    tile_map.iter().for_each(|x| {
+        border_map
+            .entry((x.1.get_border(Border::Top), Border::Top))
+            .and_modify(|v| v.push(*x.0))
+            .or_insert(vec![x.0.clone()]);
+
+        border_map
+            .entry((x.1.get_border(Border::Bottom), Border::Bottom))
+            .and_modify(|v| v.push(*x.0))
+            .or_insert(vec![x.0.clone()]);
+
+        border_map
+            .entry((x.1.get_border(Border::Left), Border::Left))
+            .and_modify(|v| v.push(*x.0))
+            .or_insert(vec![x.0.clone()]);
+        border_map
+            .entry((x.1.get_border(Border::Right), Border::Right))
+            .and_modify(|v| v.push(*x.0))
+            .or_insert(vec![x.0.clone()]);
+    });
+
     // Can then get next candidate by checking if there is valid border to the right/below
     // Remaining Available Vec should be vec of Ids, then loop over transform enum to get all
     // possibilities
     // Candidate is (id, transform_enum) tuple
     // Placed Vec should be Vec of (id, transform_enum)s
-    // Avoid clones
-    let num_tiles = (input.len() as f64).sqrt() as usize;
-    println!("Num tiles: {}, sqrt: {}", input.len(), num_tiles);
-    let placed = vec![None; num_tiles * num_tiles];
-    let pc = step_solve(placed, input.to_vec(), 0, None, num_tiles);
+    let placed: Vec<Option<(u32, Transform)>> = vec![None; num_tiles * num_tiles];
+    let pc = step_solve(
+        &tile_map,
+        &border_map,
+        placed,
+        input.iter().map(|x| x.id).collect(),
+        0,
+        None,
+        num_tiles,
+    );
     let placed = pc.unwrap().0;
-    let ids: Vec<Option<u32>> = placed.iter().map(|x| x.as_ref().map(|y| y.id)).collect();
-    println!("{:?}", ids);
+    (placed, tile_map)
+}
+
+#[aoc(day20, part1)]
+pub fn solve_part1(input: &[Tile]) -> u64 {
+    let num_tiles = (input.len() as f64).sqrt() as usize;
+    let (placed, tile_map) = get_map(input);
+    println!("{:?}", placed);
 
     let mut i = 0;
     while i < placed.len() {
-        for r in 0..placed[0].as_ref().unwrap().array.len() {
+        for r in 0..tile_map
+            .get(placed[0].as_ref().unwrap())
+            .unwrap()
+            .array
+            .len()
+        {
             let mut v = Vec::new();
             for j in 0..num_tiles {
                 v.push(
-                    placed[i + j].as_ref().unwrap().array[r]
+                    tile_map.get(placed[i + j].as_ref().unwrap()).unwrap().array[r]
                         .iter()
                         .map(|c| c.to_string())
                         .collect::<Vec<String>>()
@@ -260,124 +297,109 @@ pub fn solve_part1(input: &[Tile]) -> u64 {
         println!("\n");
     }
 
-    placed[0].as_ref().unwrap().id as u64
-        * placed[num_tiles - 1].as_ref().unwrap().id as u64
+    placed[0].as_ref().unwrap().0 as u64
+        * placed[num_tiles - 1].as_ref().unwrap().0 as u64
         * placed[num_tiles * num_tiles - num_tiles]
             .as_ref()
             .unwrap()
-            .id as u64
-        * placed[num_tiles * num_tiles - 1].as_ref().unwrap().id as u64
+            .0 as u64
+        * placed[num_tiles * num_tiles - 1].as_ref().unwrap().0 as u64
+}
+
+#[aoc(day20, part2)]
+pub fn solve_part2(input: &[Tile]) -> u64 {
+    let num_tiles = (input.len() as f64).sqrt() as usize;
+    let (placed, tile_map) = get_map(input);
+
+    // Build large map
+
+    // Slide across image
+    // Get indices of sea monster pixels
+    // Count unique indices (could overlap)
 }
 
 pub fn step_solve(
-    mut placed: Vec<Option<Tile>>,
-    available: Vec<Tile>,
+    tile_map: &HashMap<(u32, Transform), Tile>,
+    border_map: &HashMap<(Vec<Pixel>, Border), Vec<(u32, Transform)>>,
+    mut placed: Vec<Option<(u32, Transform)>>,
+    available: Vec<u32>,
     mut target_pos: usize,
-    candidate: Option<Tile>,
+    candidate: Option<(u32, Transform)>,
     num_tiles: usize,
-) -> Result<(Vec<Option<Tile>>, Vec<Tile>)> {
+) -> Result<(Vec<Option<(u32, Transform)>>, Vec<u32>)> {
     if candidate.is_some() {
         if target_pos > ((num_tiles * num_tiles) - 1) {
             return Ok((placed, available));
         }
         placed[target_pos] = candidate;
 
-        if let Err(e) = valid_state(&placed, num_tiles, target_pos) {
+        if let Err(e) = valid_state(tile_map, &placed, num_tiles, target_pos) {
             return Err(e);
         }
 
         if available.is_empty() {
-            println!(
-                "Placed: {:?}, target_pos: {}",
-                placed
-                    .iter()
-                    .map(|x| x.as_ref().map(|y| (y.id, y.transforms.clone())))
-                    .collect::<Vec<Option<(u32, Vec<Transform>)>>>(),
-                target_pos
-            );
             return Ok((placed, available));
         }
         target_pos += 1;
     }
 
-    for (i, candidate) in available.iter().enumerate() {
+    let candidates: Vec<(u32, Transform)> = {
+        if target_pos == 0 {
+            tile_map.keys().cloned().collect()
+        } else if target_pos % num_tiles == 0 {
+            border_map
+                .get(&(
+                    tile_map
+                        .get(&placed[target_pos - num_tiles].unwrap())
+                        .unwrap()
+                        .get_border(Border::Bottom),
+                    Border::Top,
+                ))
+                .unwrap_or(&vec![])
+                .clone()
+        } else {
+            border_map
+                .get(&(
+                    tile_map
+                        .get(&placed[target_pos - 1].unwrap())
+                        .unwrap()
+                        .get_border(Border::Right),
+                    Border::Left,
+                ))
+                .unwrap_or(&vec![])
+                .clone()
+        }
+    };
+
+    if available.len() < 5 {
+        println!(
+            "Placed: {:?}\nCandidates: {:?}\nAvailable: {:?}\n-------------\n",
+            placed, candidates, available
+        );
+    }
+
+    let candidates: Vec<(u32, Transform)> = candidates
+        .into_iter()
+        .filter(|x| available.contains(&x.0))
+        .collect();
+
+    for candidate in candidates {
         let mut new_available = available.clone();
-        new_available.remove(i);
-        let pc = step_solve(
-            placed.clone(),
-            new_available.clone(),
-            target_pos,
-            Some(candidate.clone()),
-            num_tiles,
+        new_available.remove(
+            available
+                .iter()
+                .enumerate()
+                .find(|x| *x.1 == candidate.0)
+                .map(|x| x.0)
+                .unwrap(),
         );
-        if pc.is_ok() {
-            return pc;
-        }
         let pc = step_solve(
+            tile_map,
+            border_map,
             placed.clone(),
             new_available.clone(),
             target_pos,
-            Some(candidate.rotate_90()),
-            num_tiles,
-        );
-        if pc.is_ok() {
-            return pc;
-        }
-        let pc = step_solve(
-            placed.clone(),
-            new_available.clone(),
-            target_pos,
-            Some(candidate.rotate_180()),
-            num_tiles,
-        );
-        if pc.is_ok() {
-            return pc;
-        }
-        let pc = step_solve(
-            placed.clone(),
-            new_available.clone(),
-            target_pos,
-            Some(candidate.rotate_270()),
-            num_tiles,
-        );
-        if pc.is_ok() {
-            return pc;
-        }
-        let pc = step_solve(
-            placed.clone(),
-            new_available.clone(),
-            target_pos,
-            Some(candidate.flip_horizontal()),
-            num_tiles,
-        );
-        if pc.is_ok() {
-            return pc;
-        }
-        let pc = step_solve(
-            placed.clone(),
-            new_available.clone(),
-            target_pos,
-            Some(candidate.rotate_90().flip_horizontal()),
-            num_tiles,
-        );
-        if pc.is_ok() {
-            return pc;
-        }
-        let pc = step_solve(
-            placed.clone(),
-            new_available.clone(),
-            target_pos,
-            Some(candidate.rotate_180().flip_horizontal()),
-            num_tiles,
-        );
-        if pc.is_ok() {
-            return pc;
-        }
-        let pc = step_solve(
-            placed.clone(),
-            new_available.clone(),
-            target_pos,
-            Some(candidate.rotate_270().flip_horizontal()),
+            Some(candidate),
             num_tiles,
         );
         if pc.is_ok() {
@@ -387,7 +409,12 @@ pub fn step_solve(
     Err(anyhow!("No valid follow-up states"))
 }
 
-pub fn valid_state(placed: &[Option<Tile>], num_tiles: usize, target_pos: usize) -> Result<()> {
+pub fn valid_state(
+    tile_map: &HashMap<(u32, Transform), Tile>,
+    placed: &[Option<(u32, Transform)>],
+    num_tiles: usize,
+    target_pos: usize,
+) -> Result<()> {
     use Border::*;
     let i = target_pos;
     let opt = &placed[i];
@@ -395,6 +422,8 @@ pub fn valid_state(placed: &[Option<Tile>], num_tiles: usize, target_pos: usize)
         let index: i64 = (i as i64) - num_tiles as i64;
         if index >= 0 {
             if let Some(at) = placed.get(index as usize).map(|x| x.as_ref()).flatten() {
+                let at = tile_map.get(at).unwrap();
+                let t = tile_map.get(t).unwrap();
                 if at.get_border(Bottom) != t.get_border(Top) {
                     return Err(anyhow!(
                         "Above check failed: {:?}, {:?}",
@@ -408,6 +437,8 @@ pub fn valid_state(placed: &[Option<Tile>], num_tiles: usize, target_pos: usize)
         let index: i64 = (i as i64) + num_tiles as i64;
         if index >= 0 {
             if let Some(at) = placed.get(index as usize).map(|x| x.as_ref()).flatten() {
+                let at = tile_map.get(at).unwrap();
+                let t = tile_map.get(t).unwrap();
                 if at.get_border(Top) != t.get_border(Bottom) {
                     return Err(anyhow!(
                         "Below check failed: {:?}, {:?}",
@@ -421,6 +452,8 @@ pub fn valid_state(placed: &[Option<Tile>], num_tiles: usize, target_pos: usize)
         let index: i64 = (i as i64) - 1;
         if index >= 0 && (i % num_tiles) != 0 {
             if let Some(at) = placed.get(index as usize).map(|x| x.as_ref()).flatten() {
+                let at = tile_map.get(at).unwrap();
+                let t = tile_map.get(t).unwrap();
                 if at.get_border(Right) != t.get_border(Left) {
                     return Err(anyhow!(
                         "Left check failed: {:?}, {:?}",
@@ -434,6 +467,8 @@ pub fn valid_state(placed: &[Option<Tile>], num_tiles: usize, target_pos: usize)
         let index: i64 = (i as i64) + 1;
         if index >= 0 && (i % num_tiles) != (num_tiles - 1) {
             if let Some(at) = placed.get(index as usize).map(|x| x.as_ref()).flatten() {
+                let at = tile_map.get(at).unwrap();
+                let t = tile_map.get(t).unwrap();
                 if at.get_border(Left) != t.get_border(Right) {
                     return Err(anyhow!(
                         "Right check failed: {:?}, {:?}",
