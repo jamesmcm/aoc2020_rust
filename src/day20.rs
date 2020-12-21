@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::str::FromStr;
 use std::string::ToString;
@@ -222,7 +223,7 @@ pub fn get_map(
     //     }
     // });
     let num_tiles = (input.len() as f64).sqrt() as usize;
-    println!("Num tiles: {}, sqrt: {}", input.len(), num_tiles);
+    // println!("Num tiles: {}, sqrt: {}", input.len(), num_tiles);
 
     // Also build (border, bordertype) -> (id, transform_enum) map - are they unique?
     let mut border_map: HashMap<(Vec<Pixel>, Border), Vec<(u32, Transform)>> =
@@ -271,31 +272,31 @@ pub fn get_map(
 pub fn solve_part1(input: &[Tile]) -> u64 {
     let num_tiles = (input.len() as f64).sqrt() as usize;
     let (placed, tile_map) = get_map(input);
-    println!("{:?}", placed);
+    // println!("{:?}", placed);
 
     let mut i = 0;
-    while i < placed.len() {
-        for r in 0..tile_map
-            .get(placed[0].as_ref().unwrap())
-            .unwrap()
-            .array
-            .len()
-        {
-            let mut v = Vec::new();
-            for j in 0..num_tiles {
-                v.push(
-                    tile_map.get(placed[i + j].as_ref().unwrap()).unwrap().array[r]
-                        .iter()
-                        .map(|c| c.to_string())
-                        .collect::<Vec<String>>()
-                        .join(""),
-                );
-            }
-            println!("{}", v.join(" "));
-        }
-        i += num_tiles;
-        println!("\n");
-    }
+    // while i < placed.len() {
+    //     for r in 0..tile_map
+    //         .get(placed[0].as_ref().unwrap())
+    //         .unwrap()
+    //         .array
+    //         .len()
+    //     {
+    //         let mut v = Vec::new();
+    //         for j in 0..num_tiles {
+    //             v.push(
+    //                 tile_map.get(placed[i + j].as_ref().unwrap()).unwrap().array[r]
+    //                     .iter()
+    //                     .map(|c| c.to_string())
+    //                     .collect::<Vec<String>>()
+    //                     .join(""),
+    //             );
+    //         }
+    //         println!("{}", v.join(" "));
+    //     }
+    //     i += num_tiles;
+    //     println!("\n");
+    // }
 
     placed[0].as_ref().unwrap().0 as u64
         * placed[num_tiles - 1].as_ref().unwrap().0 as u64
@@ -306,16 +307,128 @@ pub fn solve_part1(input: &[Tile]) -> u64 {
         * placed[num_tiles * num_tiles - 1].as_ref().unwrap().0 as u64
 }
 
+pub fn find_monsters(largemap: Vec<Vec<Pixel>>) -> usize {
+    let mut maps: Vec<Vec<Vec<Pixel>>> = Vec::with_capacity(8);
+    let mut out: usize = 0;
+    maps.push(flip_horizontal(&largemap));
+    maps.push(rotate_90(&largemap));
+    maps.push(rotate_90(&rotate_90(&largemap)));
+    maps.push(rotate_90(&rotate_90(&rotate_90(&largemap))));
+    maps.push(flip_horizontal(&rotate_90(&largemap)));
+    maps.push(flip_horizontal(&rotate_90(&rotate_90(&largemap))));
+    maps.push(flip_horizontal(&rotate_90(&rotate_90(&rotate_90(
+        &largemap,
+    )))));
+    maps.push(largemap);
+    //                  #
+    //#    ##    ##    ###
+    // #  #  #  #  #  #
+    let length = maps[0][0].len();
+    let relind = [
+        (1, 0),
+        (2, 1),
+        (2, 4),
+        (1, 5),
+        (1, 6),
+        (2, 7),
+        (2, 10),
+        (1, 11),
+        (1, 12),
+        (2, 13),
+        (2, 16),
+        (1, 17),
+        (1, 18),
+        (1, 19),
+        (0, 18),
+    ];
+    for map in maps {
+        let mut seamonster_set: HashSet<(usize, usize)> = HashSet::new();
+        for i in 0..=map.len() - 3 {
+            for j in 0..=length - 20 {
+                if relind
+                    .iter()
+                    .map(|x| map[i + x.0][j + x.1])
+                    .all(|x| x == Pixel::On)
+                {
+                    relind.iter().for_each(|x| {
+                        seamonster_set.insert((i + x.0, j + x.1));
+                    });
+                }
+            }
+        }
+        if !seamonster_set.is_empty() {
+            // println!("{:?}", seamonster_set);
+            // println!("{:?}", seamonster_set.len());
+            map.iter().enumerate().for_each(|r| {
+                (r.1).iter().enumerate().for_each(|c| {
+                    if *c.1 == Pixel::On && !seamonster_set.contains(&(r.0, c.0)) {
+                        out += 1
+                    }
+                })
+            });
+            break;
+        }
+    }
+    out
+}
+
 #[aoc(day20, part2)]
-pub fn solve_part2(input: &[Tile]) -> u64 {
+pub fn solve_part2(input: &[Tile]) -> usize {
+    let tile_len = input[0].array.len();
     let num_tiles = (input.len() as f64).sqrt() as usize;
     let (placed, tile_map) = get_map(input);
 
     // Build large map
+    let mut i = 0;
+    let mut largemap: Vec<Vec<Pixel>> = Vec::new();
+    while i < placed.len() {
+        for r in 1..tile_map
+            .get(placed[0].as_ref().unwrap())
+            .unwrap()
+            .array
+            .len()
+            - 1
+        {
+            let mut v = Vec::new();
+            for j in 0..num_tiles {
+                tile_map.get(placed[i + j].as_ref().unwrap()).unwrap().array[r][1..tile_len - 1]
+                    .iter()
+                    .cloned()
+                    .for_each(|x| v.push(x));
+            }
+            largemap.push(v);
+        }
+        i += num_tiles;
+    }
 
+    // Filter double columns and rows
+    // let largemap: Vec<Vec<Pixel>> = largemap
+    //     .iter()
+    //     .map(|r| {
+    //         r.iter()
+    //             .enumerate()
+    //             .filter(|c| c.0 == 0 || c.0 % tile_len != 0)
+    //             .map(|c| *c.1)
+    //             .collect()
+    //     })
+    //     .enumerate()
+    //     .filter(|r| r.0 == 0 || r.0 % tile_len != 0)
+    //     .map(|r| r.1)
+    //     .collect();
+    // println!("{}, {}", largemap.len(), largemap[0].len());
+    // largemap.iter().for_each(|x| {
+    //     println!(
+    //         "{}",
+    //         x.iter()
+    //             .map(|c| c.to_string())
+    //             .collect::<Vec<String>>()
+    //             .join("")
+    //     )
+    // });
     // Slide across image
     // Get indices of sea monster pixels
     // Count unique indices (could overlap)
+    find_monsters(largemap)
 }
 
 pub fn step_solve(
@@ -370,13 +483,6 @@ pub fn step_solve(
                 .clone()
         }
     };
-
-    if available.len() < 5 {
-        println!(
-            "Placed: {:?}\nCandidates: {:?}\nAvailable: {:?}\n-------------\n",
-            placed, candidates, available
-        );
-    }
 
     let candidates: Vec<(u32, Transform)> = candidates
         .into_iter()
@@ -597,6 +703,37 @@ Tile 3079:
         let inp = input_generator(ex)?;
         // println!("{:?}", inp);
         assert_eq!(solve_part1(&inp), 20899048083289);
+        Ok(())
+    }
+    #[test]
+    fn test2_0() -> Result<()> {
+        let ex = "Tile 2311:
+.#.#..#.##...#.##..#####
+###....#.#....#..#......
+##.##.###.#.#..######...
+###.#####...#.#####.#..#
+##.#....#.##.####...#.##
+...########.#....#####.#
+....#..#...##..#.#.###..
+.####...#..#.....#......
+#..#.##..#..###.#.##....
+#.####..#.####.#.#.###..
+###.#.#...#.######.#..##
+#.####....##..########.#
+##..##.#...#...#.#.#.#..
+...#..#..#.#.##..###.###
+.#.#....#.##.#...###.##.
+###.#...#..#.##.######..
+.#.#.###.##.##.#..#.##..
+.####.###.#...###.#..#.#
+..#.#..#..#.#.#.####.###
+#..####...#.#.#.###.###.
+#####..#####...###....##
+#.##..#..#...#..####...#
+.#.###..##..##..####.##.
+...###...##...#...#..###";
+        let inp = input_generator(ex)?;
+        assert_eq!(find_monsters(inp[0].array.clone()), 273);
         Ok(())
     }
 }
