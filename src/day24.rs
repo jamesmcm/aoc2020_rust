@@ -67,38 +67,105 @@ pub fn input_generator(input: &str) -> Vec<Vec<Direction>> {
 }
 
 #[aoc(day24, part1)]
-pub fn solve_part1(input: &[Vec<Direction>]) -> i64 {
-    use Direction::*;
-    let mut world: HashMap<(i32, i32), bool> = HashMap::new();
-    input.iter().for_each(|l| {
-        let mut pos = (0, 0);
-        for d in l {
-            match d {
-                East => {
-                    pos = (pos.0 + 2, pos.1);
-                }
-                West => {
-                    pos = (pos.0 - 2, pos.1);
-                }
-                NorthEast => {
-                    pos = (pos.0 + 1, pos.1 + 1);
-                }
-                NorthWest => {
-                    pos = (pos.0 - 1, pos.1 + 1);
-                }
-                SouthEast => {
-                    pos = (pos.0 + 1, pos.1 - 1);
-                }
-                SouthWest => {
-                    pos = (pos.0 - 1, pos.1 - 1);
+pub fn solve_part1(input: &[Vec<Direction>]) -> usize {
+    let world: World = World::new(input);
+    world.count_active()
+}
+
+pub struct World {
+    map: HashMap<(i32, i32), bool>,
+}
+
+impl World {
+    pub fn new(init: &[Vec<Direction>]) -> Self {
+        use Direction::*;
+        let mut world: HashMap<(i32, i32), bool> = HashMap::new();
+        init.iter().for_each(|l| {
+            let mut pos = (0, 0);
+            for d in l {
+                match d {
+                    East => {
+                        pos = (pos.0 + 2, pos.1);
+                    }
+                    West => {
+                        pos = (pos.0 - 2, pos.1);
+                    }
+                    NorthEast => {
+                        pos = (pos.0 + 1, pos.1 + 1);
+                    }
+                    NorthWest => {
+                        pos = (pos.0 - 1, pos.1 + 1);
+                    }
+                    SouthEast => {
+                        pos = (pos.0 + 1, pos.1 - 1);
+                    }
+                    SouthWest => {
+                        pos = (pos.0 - 1, pos.1 - 1);
+                    }
                 }
             }
-        }
 
-        world.entry(pos).and_modify(|x| *x = !*x).or_insert(true);
-    });
+            world.entry(pos).and_modify(|x| *x = !*x).or_insert(true);
+        });
+        Self { map: world }
+    }
 
-    world.values().map(|x| if *x { 1 } else { 0 }).sum()
+    pub fn step(&mut self) {
+        let mut all_possible: HashSet<(i32, i32)> = HashSet::new();
+        self.map
+            .keys()
+            .map(|k| (k, self.get_neighbours(*k)))
+            .for_each(|x| {
+                all_possible.insert(*x.0);
+                (x.1).iter().for_each(|y| {
+                    all_possible.insert(*y);
+                });
+            });
+
+        let mut new_map = self.map.clone();
+
+        all_possible.iter().for_each(|x| {
+            let num_active: usize = self
+                .get_neighbours(*x)
+                .iter()
+                .map(|p| self.map.get(&p).unwrap_or(&false))
+                .map(|&x| if x { 1 } else { 0 })
+                .sum();
+            if *self.map.get(&x).unwrap_or(&false) {
+                if num_active == 0 || num_active > 2 {
+                    new_map.entry(*x).and_modify(|x| *x = false);
+                }
+            } else if num_active == 2 {
+                new_map.entry(*x).and_modify(|x| *x = true).or_insert(true);
+            }
+        });
+
+        self.map = new_map;
+    }
+    pub fn get_neighbours(&self, pos: (i32, i32)) -> Vec<(i32, i32)> {
+        vec![
+            (pos.0 + 2, pos.1),
+            (pos.0 - 2, pos.1),
+            (pos.0 + 1, pos.1 + 1),
+            (pos.0 - 1, pos.1 + 1),
+            (pos.0 + 1, pos.1 - 1),
+            (pos.0 - 1, pos.1 - 1),
+        ]
+    }
+
+    pub fn count_active(&self) -> usize {
+        self.map.values().map(|x| if *x { 1 } else { 0 }).sum()
+    }
+}
+
+#[aoc(day24, part2)]
+pub fn solve_part2(input: &[Vec<Direction>]) -> usize {
+    // Initialisation
+    let mut world = World::new(input);
+    for _i in 0..100 {
+        world.step();
+    }
+    world.count_active()
 }
 
 #[cfg(test)]
@@ -136,5 +203,76 @@ neswnwewnwnwseenwseesewsenwsweewe
 wseweeenwnesenwwwswnew";
         let inp = input_generator(ex);
         assert_eq!(solve_part1(&inp), 10);
+    }
+    #[test]
+    fn test2_0() {
+        let ex = "sesenwnenenewseeswwswswwnenewsewsw
+neeenesenwnwwswnenewnwwsewnenwseswesw
+seswneswswsenwwnwse
+nwnwneseeswswnenewneswwnewseswneseene
+swweswneswnenwsewnwneneseenw
+eesenwseswswnenwswnwnwsewwnwsene
+sewnenenenesenwsewnenwwwse
+wenwwweseeeweswwwnwwe
+wsweesenenewnwwnwsenewsenwwsesesenwne
+neeswseenwwswnwswswnw
+nenwswwsewswnenenewsenwsenwnesesenew
+enewnwewneswsewnwswenweswnenwsenwsw
+sweneswneswneneenwnewenewwneswswnese
+swwesenesewenwneswnwwneseswwne
+enesenwswwswneneswsenwnewswseenwsese
+wnwnesenesenenwwnenwsewesewsesesew
+nenewswnwewswnenesenwnesewesw
+eneswnwswnwsenenwnwnwwseeswneewsenese
+neswnwewnwnwseenwseesewsenwsweewe
+wseweeenwnesenwwwswnew";
+        let inp = input_generator(ex);
+        let mut world = World::new(&inp);
+        assert_eq!(world.count_active(), 10);
+        world.step();
+        assert_eq!(world.count_active(), 15);
+        world.step();
+        assert_eq!(world.count_active(), 12);
+        world.step();
+        assert_eq!(world.count_active(), 25);
+        world.step();
+        assert_eq!(world.count_active(), 14);
+        world.step();
+        assert_eq!(world.count_active(), 23);
+        world.step();
+        assert_eq!(world.count_active(), 28);
+        world.step();
+        assert_eq!(world.count_active(), 41);
+        world.step();
+        assert_eq!(world.count_active(), 37);
+        world.step();
+        assert_eq!(world.count_active(), 49);
+        world.step();
+        assert_eq!(world.count_active(), 37);
+    }
+    #[test]
+    fn test2_1() {
+        let ex = "sesenwnenenewseeswwswswwnenewsewsw
+neeenesenwnwwswnenewnwwsewnenwseswesw
+seswneswswsenwwnwse
+nwnwneseeswswnenewneswwnewseswneseene
+swweswneswnenwsewnwneneseenw
+eesenwseswswnenwswnwnwsewwnwsene
+sewnenenenesenwsewnenwwwse
+wenwwweseeeweswwwnwwe
+wsweesenenewnwwnwsenewsenwwsesesenwne
+neeswseenwwswnwswswnw
+nenwswwsewswnenenewsenwsenwnesesenew
+enewnwewneswsewnwswenweswnenwsenwsw
+sweneswneswneneenwnewenewwneswswnese
+swwesenesewenwneswnwwneseswwne
+enesenwswwswneneswsenwnewswseenwsese
+wnwnesenesenenwwnenwsewesewsesesew
+nenewswnwewswnenesenwnesewesw
+eneswnwswnwsenenwnwnwwseeswneewsenese
+neswnwewnwnwseenwseesewsenwsweewe
+wseweeenwnesenwwwswnew";
+        let inp = input_generator(ex);
+        assert_eq!(solve_part2(&inp), 2208);
     }
 }
